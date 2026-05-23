@@ -8,29 +8,35 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- Persistent language toggle (top-right) -->
+  <div class="lang-switch" role="group" aria-label="Language">
+    <button class="lang-btn" data-lang="en" type="button">EN</button>
+    <button class="lang-btn" data-lang="hy" type="button">ՀՀ</button>
+  </div>
+
   <div id="app">
 
     <!-- ============ HOME SCREEN ============ -->
     <section id="home" class="screen active">
       <div class="card">
         <h1 class="logo">Color <span>Panic</span> 🎨</h1>
-        <p class="tagline">Tap fast. Tap smart. Don't panic.</p>
-        <button class="btn primary big" id="btn-host">Create Room as Host</button>
-        <button class="btn secondary big" id="btn-player">Join Room as Player</button>
+        <p class="tagline" data-i18n="app.tagline">Tap fast. Tap smart. Don't panic.</p>
+        <button class="btn primary big" id="btn-host" data-i18n="home.create_room">Create Room as Host</button>
+        <button class="btn secondary big" id="btn-player" data-i18n="home.join_room">Join Room as Player</button>
       </div>
     </section>
 
     <!-- ============ JOIN SCREEN (player) ============ -->
     <section id="join" class="screen">
       <div class="card">
-        <h2>Join Game</h2>
-        <label>Room code</label>
+        <h2 data-i18n="join.title">Join Game</h2>
+        <label data-i18n="join.code_label">Room code</label>
         <input id="join-code" maxlength="4" placeholder="ABCD" autocomplete="off" />
-        <label>Your name</label>
-        <input id="join-name" maxlength="20" placeholder="e.g. Ani" autocomplete="off" />
+        <label data-i18n="join.name_label">Your name</label>
+        <input id="join-name" maxlength="20" placeholder="e.g. Ani" data-i18n-placeholder="join.name_placeholder" autocomplete="off" />
         <div id="join-error" class="error"></div>
-        <button class="btn primary big" id="btn-join">Join</button>
-        <button class="btn ghost" data-back="home">← Back</button>
+        <button class="btn primary big" id="btn-join" data-i18n="join.button">Join</button>
+        <button class="btn ghost" data-back="home" data-i18n="common.back">← Back</button>
       </div>
     </section>
 
@@ -39,45 +45,45 @@
       <div class="card wide">
         <div class="lobby-header">
           <div>
-            <div class="muted">Room code</div>
+            <div class="muted" data-i18n="lobby.room_code">Room code</div>
             <div class="code" id="room-code">----</div>
           </div>
           <div class="join-url">
-            <div class="muted">Players join at</div>
-            <div id="join-url" class="url">loading…</div>
+            <div class="muted" data-i18n="lobby.players_join_at">Players join at</div>
+            <div id="join-url" class="url" data-i18n="lobby.loading">loading…</div>
           </div>
         </div>
-        <h3>Difficulty</h3>
+        <h3 data-i18n="lobby.difficulty">Difficulty</h3>
         <div class="difficulty-row" id="difficulty-row">
           <button class="diff-btn" data-diff="easy">
             <span class="diff-emoji">🌱</span>
-            <span class="diff-name">Easy</span>
-            <span class="diff-desc">8 rounds · relaxed</span>
+            <span class="diff-name" data-i18n="diff.easy">Easy</span>
+            <span class="diff-desc" data-i18n="diff.easy_desc">8 rounds · relaxed</span>
           </button>
           <button class="diff-btn active" data-diff="medium">
             <span class="diff-emoji">⚡</span>
-            <span class="diff-name">Medium</span>
-            <span class="diff-desc">10 rounds · normal</span>
+            <span class="diff-name" data-i18n="diff.medium">Medium</span>
+            <span class="diff-desc" data-i18n="diff.medium_desc">10 rounds · normal</span>
           </button>
           <button class="diff-btn" data-diff="hard">
             <span class="diff-emoji">🔥</span>
-            <span class="diff-name">Hard</span>
-            <span class="diff-desc">12 rounds · snappy</span>
+            <span class="diff-name" data-i18n="diff.hard">Hard</span>
+            <span class="diff-desc" data-i18n="diff.hard_desc">12 rounds · snappy</span>
           </button>
         </div>
 
-        <h3>Rounds</h3>
+        <h3 data-i18n="lobby.rounds">Rounds</h3>
         <div class="rounds-row">
           <button class="round-btn" id="rounds-minus" aria-label="Decrease rounds">−</button>
           <div class="rounds-value" id="rounds-value">10</div>
           <button class="round-btn" id="rounds-plus" aria-label="Increase rounds">+</button>
         </div>
-        <p class="hint" style="margin-top:4px;margin-bottom:14px;">3 – 30 rounds. Hold to adjust faster.</p>
+        <p class="hint" style="margin-top:4px;margin-bottom:14px;" data-i18n="lobby.rounds_hint">3 – 30 rounds. Hold to adjust faster.</p>
 
-        <h3>Players <span class="count" id="player-count">0</span></h3>
+        <h3><span data-i18n="lobby.players">Players</span> <span class="count" id="player-count">0</span></h3>
         <ul id="player-list" class="players"></ul>
-        <button class="btn primary big" id="btn-start" disabled>Start Game</button>
-        <p class="hint">Need at least one player to start.</p>
+        <button class="btn primary big" id="btn-start" disabled data-i18n="lobby.start_game">Start Game</button>
+        <p class="hint" data-i18n="lobby.need_player">Need at least one player to start.</p>
       </div>
     </section>
 
@@ -85,16 +91,16 @@
     <section id="host-game" class="screen">
       <div class="card wide">
         <div class="game-header">
-          <div class="round">Round <span id="host-round">1</span> / <span id="host-total">10</span></div>
+          <div class="round"><span data-i18n="game.round_label">Round</span> <span id="host-round">1</span> / <span id="host-total">10</span></div>
           <div class="timer-bar"><div id="host-timer-fill"></div></div>
           <div class="diff-badge" id="host-diff-badge">⚡ Medium</div>
         </div>
 
-        <div id="boss-banner" class="boss-banner" style="display:none;">👑 BOSS ROUND — 2× points!</div>
-        <div class="instruction" id="host-instruction">Get ready…</div>
+        <div id="boss-banner" class="boss-banner" style="display:none;" data-i18n="game.boss_banner_host">👑 BOSS ROUND — 2× points!</div>
+        <div class="instruction" id="host-instruction" data-i18n="game.get_ready">Get ready…</div>
         <div class="stimulus" id="host-stimulus"></div>
 
-        <h3>Live Scoreboard</h3>
+        <h3 data-i18n="game.live_scoreboard">Live Scoreboard</h3>
         <ul id="host-scoreboard" class="scoreboard"></ul>
       </div>
     </section>
@@ -102,21 +108,21 @@
     <!-- ============ HOST: RESULTS / WINNER ============ -->
     <section id="host-result" class="screen">
       <div class="card wide">
-        <h2 id="host-result-title">Round Summary</h2>
+        <h2 id="host-result-title" data-i18n="result.round_summary">Round Summary</h2>
         <div id="host-result-instruction" class="muted center"></div>
         <div id="host-result-reveal" class="reveal"></div>
         <ul id="host-result-list" class="scoreboard"></ul>
-        <button class="btn primary" id="btn-restart" style="display:none;">Play Again</button>
+        <button class="btn primary" id="btn-restart" style="display:none;" data-i18n="result.play_again">Play Again</button>
       </div>
     </section>
 
     <!-- ============ PLAYER: WAITING ============ -->
     <section id="player-wait" class="screen">
       <div class="card">
-        <h2>You're in! 🎉</h2>
-        <p class="muted center">Playing as</p>
+        <h2 data-i18n="player.you_in">You're in! 🎉</h2>
+        <p class="muted center" data-i18n="player.playing_as">Playing as</p>
         <div class="player-name" id="player-name-display"></div>
-        <p class="muted center">Waiting for host to start…</p>
+        <p class="muted center" data-i18n="player.waiting">Waiting for host to start…</p>
         <div class="dots"><span></span><span></span><span></span></div>
       </div>
     </section>
@@ -125,25 +131,25 @@
     <section id="player-game" class="screen">
       <div class="player-top">
         <div>
-          <div class="muted small">Player</div>
+          <div class="muted small" data-i18n="player.player">Player</div>
           <div class="pname" id="p-name">—</div>
         </div>
         <div>
-          <div class="muted small">Score</div>
+          <div class="muted small" data-i18n="player.score">Score</div>
           <div class="pscore" id="p-score">0</div>
         </div>
         <div>
-          <div class="muted small">Round</div>
+          <div class="muted small" data-i18n="player.round">Round</div>
           <div class="pround"><span id="p-round">1</span>/<span id="p-total">10</span></div>
         </div>
         <div>
-          <div class="muted small">Streak</div>
+          <div class="muted small" data-i18n="player.streak">Streak</div>
           <div class="pstreak" id="p-streak">—</div>
         </div>
       </div>
 
-      <div id="p-boss-banner" class="boss-banner small" style="display:none;">👑 BOSS — 2× points</div>
-      <div class="player-instruction" id="p-instruction">Wait…</div>
+      <div id="p-boss-banner" class="boss-banner small" style="display:none;" data-i18n="game.boss_banner_player">👑 BOSS — 2× points</div>
+      <div class="player-instruction" id="p-instruction" data-i18n="game.wait_dots">Wait…</div>
       <div class="player-stimulus" id="p-stimulus"></div>
       <div class="player-progress" id="p-progress"></div>
 
@@ -160,7 +166,7 @@
     <!-- ============ PLAYER: GAME OVER ============ -->
     <section id="player-over" class="screen">
       <div class="card">
-        <h2 id="player-over-title">Game Over!</h2>
+        <h2 id="player-over-title" data-i18n="result.game_over">Game Over!</h2>
         <div id="player-over-result"></div>
         <ul id="player-final" class="scoreboard"></ul>
       </div>
@@ -168,6 +174,7 @@
 
   </div>
 
+  <script src="i18n.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

@@ -737,6 +737,40 @@ input:focus { border-color: var(--accent); }
 .tally-row .count { font-weight: 800; }
 .tally-row.winner .label::after { content: ' 🏆'; }
 
+/* ---------- Language switch ---------- */
+.lang-switch {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 4px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 1000;
+}
+.lang-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lang-btn:hover { color: var(--text); }
+.lang-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+}
+
 /* ---------- Responsive tweaks ---------- */
 @media (max-width: 520px) {
   .card { padding: 20px; border-radius: 18px; }

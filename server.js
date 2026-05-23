@@ -115,7 +115,11 @@ const TYPES = {
   EVERYONE_TAP: {
     build() {
       const color = pick(COLORS);
-      return { instruction: `Everyone tap ${color.toUpperCase()}!`, payload: { color } };
+      return {
+        instruction: `Everyone tap ${color.toUpperCase()}!`,
+        instructionMeta: { key: 'EVERYONE_TAP', params: { color } },
+        payload: { color },
+      };
     },
     evaluateTap(p, c, s, ch) { return { done: true, correct: c === ch.payload.color }; },
   },
@@ -127,6 +131,7 @@ const TYPES = {
       const color = pick(COLORS);
       return {
         instruction: `Only ${target.name} tap ${color.toUpperCase()}!`,
+        instructionMeta: { key: 'ONLY_PLAYER', params: { name: target.name, color } },
         payload: { color, targetId: target.id, targetName: target.name },
       };
     },
@@ -139,7 +144,11 @@ const TYPES = {
   AVOID: {
     build() {
       const color = pick(COLORS);
-      return { instruction: `Do NOT tap ${color.toUpperCase()}!`, payload: { color } };
+      return {
+        instruction: `Do NOT tap ${color.toUpperCase()}!`,
+        instructionMeta: { key: 'AVOID', params: { color } },
+        payload: { color },
+      };
     },
     evaluateTap(p, c, s, ch) { return { done: true, correct: c !== ch.payload.color }; },
   },
@@ -151,6 +160,7 @@ const TYPES = {
       while (dc === word) dc = pick(COLORS);
       return {
         instruction: `Tap the WORD, not the color!`,
+        instructionMeta: { key: 'WORD_VS_COLOR', params: {} },
         payload: { word, displayColor: dc },
       };
     },
@@ -162,6 +172,7 @@ const TYPES = {
       const color = pick(COLORS);
       return {
         instruction: `Tap the OPPOSITE of ${color.toUpperCase()}!`,
+        instructionMeta: { key: 'OPPOSITE', params: { color } },
         payload: { color, opposite: OPPOSITES[color] },
       };
     },
@@ -172,6 +183,7 @@ const TYPES = {
     build() {
       return {
         instruction: 'Tap this sequence in order!',
+        instructionMeta: { key: 'SEQUENCE', params: {} },
         payload: { sequence: randSequence(3) },
         durationMs: 7000,
         scoring: { correct: 20 },
@@ -195,6 +207,7 @@ const TYPES = {
       const target = 3 + Math.floor(Math.random() * 2);
       return {
         instruction: `Tap ${color.toUpperCase()} exactly ${target} times!`,
+        instructionMeta: { key: 'COUNT', params: { color, target } },
         payload: { color, target },
         durationMs: 6000,
         scoring: { correct: 15 },
@@ -218,6 +231,7 @@ const TYPES = {
       const seq = randSequence(4);
       return {
         instruction: 'Watch the colors flash…',
+        instructionMeta: { key: 'LAST_COLOR', params: {} },
         payload: { sequence: seq },
         secret: { answer: seq[seq.length - 1] },
         previewMs: 3600, // ~900ms per color
@@ -244,6 +258,7 @@ const TYPES = {
       }
       return {
         instruction: `What is ${a} ${op} ${b}?`,
+        instructionMeta: { key: 'COLOR_MATH', params: { a, op, b } },
         payload: { expr: `${a} ${op} ${b}`, legend: NUM_TO_COLOR },
         secret: { answer: NUM_TO_COLOR[result] },
       };
@@ -256,6 +271,7 @@ const TYPES = {
     build() {
       return {
         instruction: 'Tap what MOST players will tap!',
+        instructionMeta: { key: 'MAJORITY', params: {} },
         payload: { mode: 'majority' },
         deferredScoring: true,
       };
@@ -283,6 +299,7 @@ const TYPES = {
     build() {
       return {
         instruction: 'Tap what FEWEST players will tap!',
+        instructionMeta: { key: 'MINORITY', params: {} },
         payload: { mode: 'minority' },
         deferredScoring: true,
       };
@@ -310,6 +327,7 @@ const TYPES = {
     build() {
       return {
         instruction: 'Memorize this sequence!',
+        instructionMeta: { key: 'MEMORY_SEQUENCE', params: {} },
         payload: { sequence: randSequence(5) },
         previewMs: 3500,
         durationMs: 9000,
@@ -334,6 +352,7 @@ const TYPES = {
       const color = pick(COLORS);
       return {
         instruction: `Wait, THEN tap ${color.toUpperCase()}!`,
+        instructionMeta: { key: 'DONT_TAP_UNTIL', params: { color } },
         payload: { color },
         previewMs: 3000, // wait period
         durationMs: 6000,
@@ -352,6 +371,7 @@ const TYPES = {
       const grid = shuffle([majority, majority, majority, odd]);
       return {
         instruction: 'Find the ODD one out!',
+        instructionMeta: { key: 'ODD_ONE_OUT', params: {} },
         payload: { grid, odd },
       };
     },
@@ -364,6 +384,7 @@ const TYPES = {
       const seq = randSequence(3);
       return {
         instruction: 'Tap the sequence BACKWARDS!',
+        instructionMeta: { key: 'REVERSE_ORDER', params: {} },
         payload: { sequence: seq, expected: [...seq].reverse() },
         durationMs: 7000,
         scoring: { correct: 25 },
@@ -389,6 +410,7 @@ const TYPES = {
       const countB = 1 + Math.floor(Math.random() * 2); // 1-2
       return {
         instruction: `Tap ${colorA.toUpperCase()} ${countA}×, then ${colorB.toUpperCase()} ${countB}×!`,
+        instructionMeta: { key: 'COLOR_NUMBER', params: { colorA, countA, colorB, countB } },
         payload: { colorA, countA, colorB, countB },
         durationMs: 8000,
         scoring: { correct: 25 },
@@ -421,6 +443,7 @@ const TYPES = {
     build() {
       return {
         instruction: '🎲 Roulette! Tap any color — answer revealed after.',
+        instructionMeta: { key: 'ROULETTE', params: {} },
         payload: { mode: 'roulette' },
         deferredScoring: true,
       };
@@ -448,6 +471,7 @@ const TYPES = {
       const ordinals = ['1st', '2nd', '3rd', '4th'];
       return {
         instruction: 'Memorize the shapes!',
+        instructionMeta: { key: 'DRAWING', params: { ordinal: ordinals[askIndex] } },
         payload: { items, askIndex, ordinal: ordinals[askIndex] },
         secret: { answer: items[askIndex].color },
         previewMs: 3600,
@@ -479,6 +503,7 @@ function buildChallenge(room) {
   return {
     type: typeKey,
     instruction: built.instruction,
+    instructionMeta: built.instructionMeta || { key: typeKey, params: {} },
     payload: built.payload,
     secret: built.secret || null,
     durationMs: Math.round(rawDur * (isBoss ? BOSS_DURATION_MULT : 1)),
@@ -498,6 +523,7 @@ function publicChallenge(ch) {
   return {
     type: ch.type,
     instruction: ch.instruction,
+    instructionMeta: ch.instructionMeta,
     payload: ch.payload,
     isBoss: ch.isBoss,
     previewMs: ch.previewMs,

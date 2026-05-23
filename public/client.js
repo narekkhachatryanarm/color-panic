@@ -2,6 +2,46 @@
 // Single-page client for both host and player. Server is authoritative.
 
 const socket = io();
+const t = window.i18n.t;
+const tInstr = window.i18n.instructionFrom;
+const tColor = window.i18n.colorLoud;
+
+// Language toggle buttons
+document.querySelectorAll('.lang-btn').forEach((btn) => {
+  btn.addEventListener('click', () => window.i18n.setLang(btn.dataset.lang));
+});
+
+// Initial color-btn label refresh (in case stored language != HTML default)
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.color-btn').forEach((b) => {
+    b.textContent = tColor(b.dataset.color);
+  });
+});
+
+// Re-render dynamic content when language changes
+window.addEventListener('languagechange', () => {
+  // Refresh color-button labels
+  document.querySelectorAll('.color-btn').forEach((b) => {
+    b.textContent = tColor(b.dataset.color);
+  });
+  // Refresh difficulty badge
+  const room = lastRoomState;
+  if (room) {
+    const meta = DIFF_META[room.difficulty] || DIFF_META.medium;
+    const badge = document.getElementById('host-diff-badge');
+    if (badge) badge.textContent = `${meta.emoji} ${t('diff.' + room.difficulty)}`;
+  }
+  // Refresh current round instruction if a round is active
+  if (currentChallenge && currentChallenge.instructionMeta) {
+    const hostInstr = document.getElementById('host-instruction');
+    const playerInstr = document.getElementById('p-instruction');
+    const txt = currentPhase === 'preview'
+      ? previewInstructionText(currentChallenge)
+      : answerInstruction(currentChallenge);
+    if (hostInstr) hostInstr.textContent = txt;
+    if (playerInstr) playerInstr.textContent = txt;
+  }
+});
 
 // ---------- Screen routing ----------
 const screens = document.querySelectorAll('.screen');
@@ -21,12 +61,14 @@ let timerRAF = null;
 let previewTimer = null;
 let previewTickTimer = null;
 let currentChallenge = null;
+let currentPhase = null; // 'preview' | 'answer'
+let lastRoomState = null;
 
 const COLOR_HEX = { red: '#ff3b30', blue: '#0a84ff', green: '#34c759', yellow: '#ffd60a' };
 const DIFF_META = {
-  easy: { emoji: '🌱', label: 'Easy' },
-  medium: { emoji: '⚡', label: 'Medium' },
-  hard: { emoji: '🔥', label: 'Hard' },
+  easy: { emoji: '🌱' },
+  medium: { emoji: '⚡' },
+  hard: { emoji: '🔥' },
 };
 
 // ---------- Host: create room ----------
@@ -37,12 +79,14 @@ async function createRoom() {
     myRoom = res.code;
     document.getElementById('room-code').textContent = res.code;
     show('host-lobby');
+    const urlEl = document.getElementById('join-url');
+    urlEl.removeAttribute('data-i18n');
     try {
       const info = await fetch('/api/host-info').then((r) => r.json());
       const ip = info.ips[0] || location.hostname;
-      document.getElementById('join-url').textContent = `http://${ip}:${info.port}`;
+      urlEl.textContent = `http://${ip}:${info.port}`;
     } catch {
-      document.getElementById('join-url').textContent = location.host;
+      urlEl.textContent = location.host;
     }
   });
 }
@@ -119,11 +163,11 @@ function joinRoom() {
   const name = document.getElementById('join-name').value.trim();
   const errEl = document.getElementById('join-error');
   errEl.textContent = '';
-  if (code.length !== 4) return (errEl.textContent = 'Enter a 4-letter room code.');
-  if (!name) return (errEl.textContent = 'Enter your name.');
+  if (code.length !== 4) return (errEl.textContent = t('join.error_code_4'));
+  if (!name) return (errEl.textContent = t('join.error_name'));
 
   socket.emit('player:join', { code, name }, (res) => {
-    if (!res || !res.ok) { errEl.textContent = res?.error || 'Could not join'; return; }
+    if (!res || !res.ok) { errEl.textContent = res?.error || t('join.error_join'); return; }
     myRole = 'player';
     myRoom = res.code;
     myName = res.name;
@@ -136,9 +180,10 @@ function joinRoom() {
 
 // ---------- Room updates ----------
 socket.on('room:update', (room) => {
+  lastRoomState = room;
   const meta = DIFF_META[room.difficulty] || DIFF_META.medium;
   const badge = document.getElementById('host-diff-badge');
-  if (badge) badge.textContent = `${meta.emoji} ${meta.label}`;
+  if (badge) badge.textContent = `${meta.emoji} ${t('diff.' + room.difficulty)}`;
 
   if (myRole === 'host') {
     document.querySelectorAll('.diff-btn').forEach((b) =>
@@ -194,7 +239,7 @@ function renderHostScoreboard(room) {
         <span>${medal}</span>
         <strong>${escapeHtml(p.name)}</strong>
         ${streakBadge}
-        ${p.connected ? '' : '<span class="badge">offline</span>'}
+        ${p.connected ? '' : `<span class="badge">${t('badge.offline')}</span>`}
       </div>
       <span class="score">${p.score}</span>`;
     sb.appendChild(li);
@@ -204,6 +249,7 @@ function renderHostScoreboard(room) {
 // ---------- Round start ----------
 socket.on('round:start', ({ round, totalRounds, durationMs, previewMs, isBoss, challenge }) => {
   currentChallenge = challenge;
+  currentPhase = previewMs > 0 ? 'preview' : 'answer';
   clearPreviewTimers();
 
   if (myRole === 'host') {
@@ -235,6 +281,17 @@ function clearPreviewTimers() {
 }
 
 // ---------- Preview phase rendering ----------
+function previewInstructionText(ch) {
+  const c = ch.payload?.color;
+  switch (ch.type) {
+    case 'LAST_COLOR': return t('round.LAST_COLOR_preview');
+    case 'MEMORY_SEQUENCE': return t('round.MEMORY_SEQUENCE_preview');
+    case 'DRAWING': return t('round.DRAWING_watch');
+    case 'DONT_TAP_UNTIL': return t('round.DONT_TAP_UNTIL_preview', { color: tColor(c) });
+    default: return tInstr(ch.instructionMeta) || ch.instruction || '';
+  }
+}
+
 function runPreviewPhase(ch, previewMs) {
   const hostInstr = document.getElementById('host-instruction');
   const playerInstr = document.getElementById('p-instruction');
@@ -252,23 +309,21 @@ function runPreviewPhase(ch, previewMs) {
     if (playerInstr) playerInstr.textContent = text;
   };
 
+  setInstr(previewInstructionText(ch));
+
   if (ch.type === 'LAST_COLOR') {
-    setInstr('Watch the colors flash…');
     flashSequence([hostStim, playerStim], ch.payload.sequence, previewMs);
     return;
   }
   if (ch.type === 'MEMORY_SEQUENCE') {
-    setInstr('Memorize the sequence!');
     showMemoryChips([hostStim, playerStim], ch.payload.sequence);
     return;
   }
   if (ch.type === 'DRAWING') {
-    setInstr('Watch the shapes…');
     flashShapes([hostStim, playerStim], ch.payload.items, previewMs);
     return;
   }
   if (ch.type === 'DONT_TAP_UNTIL') {
-    setInstr(`Wait! Then tap ${ch.payload.color.toUpperCase()}!`);
     runCountdown([hostStim, playerStim], previewMs, ch.payload.color);
     return;
   }
@@ -277,21 +332,21 @@ function runPreviewPhase(ch, previewMs) {
 function flashSequence(targets, sequence, totalMs) {
   const slotMs = Math.floor(totalMs / sequence.length);
   let idx = 0;
-  targets.forEach((t) => { if (t) t.innerHTML = '<div class="flash-box empty">Watch…</div>'; });
+  targets.forEach((el) => { if (el) el.innerHTML = `<div class="flash-box empty">${t('flash.watch')}</div>`; });
 
   const showNext = () => {
     if (idx >= sequence.length) {
-      targets.forEach((t) => { if (t) t.innerHTML = '<div class="flash-box empty">…</div>'; });
+      targets.forEach((el) => { if (el) el.innerHTML = `<div class="flash-box empty">${t('flash.dots')}</div>`; });
       return;
     }
     const c = sequence[idx++];
-    targets.forEach((t) => {
-      if (!t) return;
-      t.innerHTML = `<div class="flash-box" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''}">${c.toUpperCase()}</div>`;
+    targets.forEach((el) => {
+      if (!el) return;
+      el.innerHTML = `<div class="flash-box" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''}">${tColor(c)}</div>`;
     });
     setTimeout(() => {
       // brief blank between flashes
-      targets.forEach((t) => { if (t) t.innerHTML = '<div class="flash-box empty"></div>'; });
+      targets.forEach((el) => { if (el) el.innerHTML = '<div class="flash-box empty"></div>'; });
     }, Math.max(150, slotMs - 200));
     previewTickTimer = setTimeout(showNext, slotMs);
   };
@@ -301,11 +356,11 @@ function flashSequence(targets, sequence, totalMs) {
 function showMemoryChips(targets, sequence) {
   const html = `<div class="seq-chips">${sequence.map((c, i) => `
     <div class="seq-chip" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''}">
-      ${c.toUpperCase().slice(0,3)}
+      ${tColor(c).slice(0,3)}
       <div class="step-num">${i+1}</div>
     </div>
   `).join('')}</div>`;
-  targets.forEach((t) => { if (t) t.innerHTML = html; });
+  targets.forEach((el) => { if (el) el.innerHTML = html; });
 }
 
 function flashShapes(targets, items, totalMs) {
@@ -313,13 +368,13 @@ function flashShapes(targets, items, totalMs) {
   let idx = 0;
   const showNext = () => {
     if (idx >= items.length) {
-      targets.forEach((t) => { if (t) t.innerHTML = '<div class="shape-flash" style="opacity:0.3;">…</div>'; });
+      targets.forEach((el) => { if (el) el.innerHTML = '<div class="shape-flash" style="opacity:0.3;">…</div>'; });
       return;
     }
     const { shape, color } = items[idx++];
-    targets.forEach((t) => {
-      if (!t) return;
-      t.innerHTML = `<div class="shape-flash" style="color:${COLOR_HEX[color]};">${shape}</div>`;
+    targets.forEach((el) => {
+      if (!el) return;
+      el.innerHTML = `<div class="shape-flash" style="color:${COLOR_HEX[color]};">${shape}</div>`;
     });
     previewTickTimer = setTimeout(showNext, slotMs);
   };
@@ -332,8 +387,8 @@ function runCountdown(targets, totalMs, finalColor) {
     const remaining = Math.max(0, totalMs - (Date.now() - start));
     const seconds = Math.ceil(remaining / 1000);
     if (remaining <= 0) return;
-    targets.forEach((t) => {
-      if (t) t.innerHTML = `<div class="countdown" key="${seconds}">${seconds}</div>`;
+    targets.forEach((el) => {
+      if (el) el.innerHTML = `<div class="countdown" key="${seconds}">${seconds}</div>`;
     });
     previewTickTimer = setTimeout(tick, 1000);
   };
@@ -342,6 +397,7 @@ function runCountdown(targets, totalMs, finalColor) {
 
 // ---------- Answer phase ----------
 function runAnswerPhase(ch) {
+  currentPhase = 'answer';
   const hostStim = document.getElementById('host-stimulus');
   const playerStim = document.getElementById('p-stimulus');
 
@@ -363,12 +419,12 @@ function runAnswerPhase(ch) {
 
 function answerInstruction(ch) {
   switch (ch.type) {
-    case 'LAST_COLOR': return 'Tap the LAST color shown!';
-    case 'MEMORY_SEQUENCE': return 'Now tap the sequence from memory!';
-    case 'DRAWING': return `What color was the ${ch.payload.ordinal} shape?`;
-    case 'DONT_TAP_UNTIL': return `NOW! Tap ${ch.payload.color.toUpperCase()}!`;
-    case 'ROULETTE': return '🎲 Pick any color — roulette wheel decides!';
-    default: return ch.instruction;
+    case 'LAST_COLOR': return t('round.LAST_COLOR_answer');
+    case 'MEMORY_SEQUENCE': return t('round.MEMORY_SEQUENCE_answer');
+    case 'DRAWING': return t('round.DRAWING_answer', { ordinal: window.i18n.ordinal(ch.payload.ordinal) });
+    case 'DONT_TAP_UNTIL': return t('round.DONT_TAP_UNTIL_now', { color: tColor(ch.payload.color) });
+    case 'ROULETTE': return t('round.ROULETTE_answer');
+    default: return tInstr(ch.instructionMeta) || ch.instruction || '';
   }
 }
 
@@ -380,7 +436,7 @@ function renderStimulus(el, ch, prog) {
 
   // Types that hide their stimulus during the answer phase
   if (type === 'LAST_COLOR' || type === 'MEMORY_SEQUENCE') {
-    el.innerHTML = '<div class="flash-box empty">Tap from memory →</div>';
+    el.innerHTML = `<div class="flash-box empty">${t('flash.tap_from_memory')}</div>`;
     return;
   }
   if (type === 'DRAWING') {
@@ -389,15 +445,15 @@ function renderStimulus(el, ch, prog) {
   }
 
   if (type === 'WORD_VS_COLOR') {
-    el.innerHTML = `<span class="c-${payload.displayColor}">${payload.word.toUpperCase()}</span>`;
+    el.innerHTML = `<span class="c-${payload.displayColor}">${tColor(payload.word)}</span>`;
     return;
   }
   if (type === 'AVOID') {
-    el.innerHTML = `<span class="c-${payload.color}">🚫 ${payload.color.toUpperCase()}</span>`;
+    el.innerHTML = `<span class="c-${payload.color}">🚫 ${tColor(payload.color)}</span>`;
     return;
   }
   if (type === 'OPPOSITE') {
-    el.innerHTML = `<span class="c-${payload.color}">${payload.color.toUpperCase()}</span> ➜ ?`;
+    el.innerHTML = `<span class="c-${payload.color}">${tColor(payload.color)}</span> ➜ ?`;
     return;
   }
   if (type === 'SEQUENCE' || type === 'REVERSE_ORDER') {
@@ -408,7 +464,7 @@ function renderStimulus(el, ch, prog) {
   if (type === 'COUNT') {
     const current = prog?.count ?? 0;
     el.innerHTML = `<div class="count-display">
-      <span class="c-${payload.color}">${payload.color.toUpperCase()}</span>
+      <span class="c-${payload.color}">${tColor(payload.color)}</span>
       <span class="count-target">${current} / ${payload.target}</span>
     </div>`;
     return;
@@ -418,10 +474,10 @@ function renderStimulus(el, ch, prog) {
     const cA = prog?.countA ?? 0;
     const cB = prog?.countB ?? 0;
     el.innerHTML = `<div class="count-display">
-      <span class="c-${payload.colorA}" style="${phase===1?'opacity:0.4;':''}">${payload.colorA.toUpperCase()}</span>
+      <span class="c-${payload.colorA}" style="${phase===1?'opacity:0.4;':''}">${tColor(payload.colorA)}</span>
       <span class="count-target">${cA} / ${payload.countA}</span>
       <span style="opacity:0.5;">→</span>
-      <span class="c-${payload.colorB}" style="${phase===0?'opacity:0.4;':''}">${payload.colorB.toUpperCase()}</span>
+      <span class="c-${payload.colorB}" style="${phase===0?'opacity:0.4;':''}">${tColor(payload.colorB)}</span>
       <span class="count-target">${cB} / ${payload.countB}</span>
     </div>`;
     return;
@@ -456,7 +512,7 @@ function renderStimulus(el, ch, prog) {
   }
 
   // EVERYONE_TAP / ONLY_PLAYER default
-  el.innerHTML = `<span class="c-${payload.color}">${payload.color.toUpperCase()}</span>`;
+  el.innerHTML = `<span class="c-${payload.color}">${tColor(payload.color)}</span>`;
 }
 
 function renderSeqChips(seq, progress) {
@@ -467,7 +523,7 @@ function renderSeqChips(seq, progress) {
       else if (i === progress) cls += ' current';
     } else if (i === 0) cls += ' current';
     return `<div class="${cls}" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''}">
-      ${c.toUpperCase().slice(0,3)}
+      ${tColor(c).slice(0,3)}
       <div class="step-num">${i+1}</div>
     </div>`;
   }).join('')}</div>`;
@@ -499,16 +555,16 @@ socket.on('player:feedback', (data) => {
   const { kind } = data;
   if (kind === 'correct') {
     document.querySelectorAll('.color-btn').forEach((b) => (b.disabled = true));
-    const bonus = data.streakBonus ? ` 🔥+${data.streakBonus}` : '';
-    setFeedback('correct', `✅ Correct! +${data.points}${bonus}`);
+    const streak = data.streakBonus ? t('fb.streak_part', { bonus: data.streakBonus }) : '';
+    setFeedback('correct', t('fb.correct_points', { points: data.points, streak }));
   } else if (kind === 'wrong') {
     document.querySelectorAll('.color-btn').forEach((b) => (b.disabled = true));
-    setFeedback('wrong', `❌ Wrong! ${data.points}`);
+    setFeedback('wrong', t('fb.wrong_points', { points: data.points }));
   } else if (kind === 'submitted') {
     document.querySelectorAll('.color-btn').forEach((b) => (b.disabled = true));
-    setFeedback('already', '⏳ Locked in — waiting for reveal');
+    setFeedback('already', t('fb.locked_in'));
   } else if (kind === 'already') {
-    setFeedback('already', 'Already answered');
+    setFeedback('already', t('fb.already'));
   } else if (kind === 'progress') {
     if (currentChallenge) {
       const stim = document.getElementById('p-stimulus');
@@ -517,12 +573,12 @@ socket.on('player:feedback', (data) => {
     const p = document.getElementById('p-progress');
     if (currentChallenge?.type === 'COLOR_NUMBER') {
       const need = data.phase === 0 ? currentChallenge.payload.colorA : currentChallenge.payload.colorB;
-      p.textContent = `Now tap ${need.toUpperCase()}! ✨`;
+      p.textContent = t('fb.now_tap_color', { color: tColor(need) });
     } else if (typeof data.progress === 'number') {
       const total = currentChallenge?.payload?.sequence?.length || currentChallenge?.payload?.expected?.length || '?';
-      p.textContent = `Step ${data.progress} / ${total} ✨`;
+      p.textContent = t('fb.step_progress', { progress: data.progress, total });
     } else if (typeof data.count === 'number') {
-      p.textContent = `${data.count} / ${currentChallenge?.payload?.target || '?'} taps ✨`;
+      p.textContent = t('fb.taps_progress', { count: data.count, target: currentChallenge?.payload?.target || '?' });
     }
   }
 });
@@ -538,9 +594,12 @@ socket.on('round:result', ({ round, challenge, summary, fastestId }) => {
   clearPreviewTimers();
   if (myRole === 'host') {
     show('host-result');
-    const title = challenge.isBoss ? `👑 Round ${round} (BOSS) Results` : `Round ${round} Results`;
-    document.getElementById('host-result-title').textContent = title;
-    document.getElementById('host-result-instruction').textContent = challenge.instruction;
+    const titleKey = challenge.isBoss ? 'result.round_x_boss_results' : 'result.round_x_results';
+    const titleEl = document.getElementById('host-result-title');
+    titleEl.removeAttribute('data-i18n');
+    titleEl.textContent = t(titleKey, { round });
+    document.getElementById('host-result-instruction').textContent =
+      answerInstruction(challenge);
 
     document.getElementById('host-result-reveal').innerHTML = renderReveal(challenge);
 
@@ -556,7 +615,7 @@ socket.on('round:result', ({ round, challenge, summary, fastestId }) => {
         <div class="player-info">
           <span>${icon}</span>
           <strong>${escapeHtml(p.name)}</strong>
-          ${p.fastest ? '<span class="badge">⚡ fastest +5</span>' : ''}
+          ${p.fastest ? `<span class="badge">${t('fb.fastest_badge')}</span>` : ''}
           ${streakBadge}
         </div>
         <span class="score">${p.score}</span>`;
@@ -569,10 +628,10 @@ socket.on('round:result', ({ round, challenge, summary, fastestId }) => {
     if (me) {
       document.getElementById('p-score').textContent = me.score;
       updateStreakUI(me.streak);
-      if (me.result === 'no-answer') setFeedback('late', '⏱ Too late!');
-      else if (me.fastest) setFeedback('correct', '⚡ Fastest! +5 bonus');
-      else if (me.result === 'correct') setFeedback('correct', '✅ Correct!');
-      else if (me.result === 'wrong') setFeedback('wrong', '❌ Wrong!');
+      if (me.result === 'no-answer') setFeedback('late', t('fb.too_late'));
+      else if (me.fastest) setFeedback('correct', t('fb.fastest'));
+      else if (me.result === 'correct') setFeedback('correct', t('fb.correct'));
+      else if (me.result === 'wrong') setFeedback('wrong', t('fb.wrong'));
     }
   }
 });
@@ -581,23 +640,26 @@ socket.on('round:result', ({ round, challenge, summary, fastestId }) => {
 function renderReveal(ch) {
   const { type, payload, secret, reveal } = ch;
 
+  const colorPill = (c) => `<span class="big-color" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''}">${tColor(c)}</span>`;
+
   if (type === 'COLOR_MATH' && secret) {
-    return `<div>Answer: <span class="big-color" style="background:${COLOR_HEX[secret.answer]};${secret.answer==='yellow'?'color:#1a0b2e;':''}">${secret.answer.toUpperCase()}</span></div>`;
+    return `<div>${t('reveal.answer')} ${colorPill(secret.answer)}</div>`;
   }
   if (type === 'LAST_COLOR' && secret) {
     const seq = payload.sequence.map((c) =>
-      `<span class="big-color" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''};font-size:14px;padding:4px 10px;">${c.toUpperCase()}</span>`
+      `<span class="big-color" style="background:${COLOR_HEX[c]};${c==='yellow'?'color:#1a0b2e;':''};font-size:14px;padding:4px 10px;">${tColor(c)}</span>`
     ).join(' ');
-    return `<div>Sequence: ${seq}</div><div style="margin-top:8px;">Last: <span class="big-color" style="background:${COLOR_HEX[secret.answer]};${secret.answer==='yellow'?'color:#1a0b2e;':''}">${secret.answer.toUpperCase()}</span></div>`;
+    return `<div>${t('reveal.sequence')} ${seq}</div><div style="margin-top:8px;">${t('reveal.last')} ${colorPill(secret.answer)}</div>`;
   }
   if (type === 'DRAWING' && secret) {
     const shapes = payload.items.map((it, i) =>
       `<span style="color:${COLOR_HEX[it.color]};font-size:32px;margin:0 6px;${i===payload.askIndex?'text-shadow:0 0 8px white;':''}">${it.shape}</span>`
     ).join('');
-    return `<div>${shapes}</div><div style="margin-top:8px;">${payload.ordinal} shape was <span class="big-color" style="background:${COLOR_HEX[secret.answer]};${secret.answer==='yellow'?'color:#1a0b2e;':''}">${secret.answer.toUpperCase()}</span></div>`;
+    const ord = window.i18n.ordinal(payload.ordinal);
+    return `<div>${shapes}</div><div style="margin-top:8px;">${t('reveal.shape_was', { ordinal: ord })} ${colorPill(secret.answer)}</div>`;
   }
   if (type === 'ROULETTE' && reveal) {
-    return `<div>🎲 Winner: <span class="big-color" style="background:${COLOR_HEX[reveal.winner]};${reveal.winner==='yellow'?'color:#1a0b2e;':''}">${reveal.winner.toUpperCase()}</span></div>`;
+    return `<div>${t('reveal.roulette_winner')} ${colorPill(reveal.winner)}</div>`;
   }
   if ((type === 'MAJORITY' || type === 'MINORITY') && reveal) {
     return renderTally(reveal, type);
@@ -609,28 +671,30 @@ function renderTally(reveal, type) {
   const tally = reveal.tally || {};
   const winners = new Set(reveal.winners || []);
   const max = Math.max(1, ...Object.values(tally));
-  const label = type === 'MAJORITY' ? 'Most picked' : 'Fewest picked';
+  const label = type === 'MAJORITY' ? t('reveal.most_picked') : t('reveal.fewest_picked');
   const rows = ['red', 'blue', 'green', 'yellow']
     .map((c) => {
       const count = tally[c] || 0;
       const pct = (count / max) * 100;
       const winCls = winners.has(c) ? ' winner' : '';
       return `<div class="tally-row${winCls}">
-        <div class="label c-${c}">${c.toUpperCase()}</div>
+        <div class="label c-${c}">${tColor(c)}</div>
         <div class="tally-bar"><div class="tally-fill" style="width:${pct}%;background:${COLOR_HEX[c]};"></div></div>
         <div class="count">${count}</div>
       </div>`;
     }).join('');
-  return `<div style="font-size:14px;color:var(--muted);margin-bottom:6px;">${label} wins</div><div class="tally-bars">${rows}</div>`;
+  return `<div style="font-size:14px;color:var(--muted);margin-bottom:6px;">${label}</div><div class="tally-bars">${rows}</div>`;
 }
 
 // ---------- Game over ----------
 socket.on('game:over', ({ scoreboard, winner }) => {
   if (myRole === 'host') {
     show('host-result');
-    document.getElementById('host-result-title').textContent =
-      winner ? `🏆 ${winner.name} wins!` : '🏆 Game Over';
-    document.getElementById('host-result-instruction').textContent = 'Final Scoreboard';
+    const goTitleEl = document.getElementById('host-result-title');
+    goTitleEl.removeAttribute('data-i18n');
+    goTitleEl.textContent =
+      winner ? t('result.x_wins', { name: winner.name }) : t('result.game_over');
+    document.getElementById('host-result-instruction').textContent = t('result.final_scoreboard');
     document.getElementById('host-result-reveal').innerHTML = '';
     const list = document.getElementById('host-result-list');
     list.innerHTML = '';
@@ -652,9 +716,9 @@ socket.on('game:over', ({ scoreboard, winner }) => {
     const myRank = me ? scoreboard.indexOf(me) + 1 : null;
     const isWinner = winner && winner.id === myId;
     const resEl = document.getElementById('player-over-result');
-    if (isWinner) resEl.innerHTML = `<span class="crown">👑</span>You won!`;
-    else if (myRank) resEl.innerHTML = `You finished <strong>#${myRank}</strong> with <strong>${me.score}</strong> points`;
-    else resEl.textContent = 'Thanks for playing!';
+    if (isWinner) resEl.innerHTML = `<span class="crown">👑</span>${t('result.you_won')}`;
+    else if (myRank) resEl.innerHTML = t('result.finished_rank', { rank: myRank, score: me.score });
+    else resEl.textContent = t('result.thanks');
 
     const list = document.getElementById('player-final');
     list.innerHTML = '';
@@ -680,7 +744,7 @@ socket.on('game:reset', () => {
 });
 
 socket.on('room:closed', ({ reason }) => {
-  alert((reason || 'Room closed') + '. Returning home.');
+  alert((reason || t('room.closed_default')) + '. ' + t('room.closed_suffix'));
   myRole = null;
   myRoom = null;
   show('home');
